@@ -3,11 +3,14 @@ import { X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import SearchAction from "./searchaction";
 
-export default function SearchBar({ placeholder = "Search..." }) {
+export default function SearchBar({ placeholder = "Search...", setBorder }) {
     const options = [
-        { value: "google", label: "Google", url: "https://www.google.com/search?q=", bg: "#C8E6C999" },
-        { value: "bing", label: "Bing", url: "https://www.bing.com/search?q=", bg: "#B2EBF299" },
-        { value: "duckduckgo", label: "DuckDuckGo", url: "https://duckduckgo.com/?q=", bg: "#FFECB399" }
+        { value: "google", label: "Google", url: "https://www.google.com/search?q=", bg: "#4285F4" },
+        { value: "bing", label: "Bing", url: "https://www.bing.com/search?q=", bg: "#008272" },
+        { value: "duckduckgo", label: "DuckDuckGo", url: "https://duckduckgo.com/?q=", bg: "#DE5833" },
+        { value: "github", label: "GitHub", url: "https://github.com/search?q=", bg: "#24292e" },
+        { value: "youtube", label: "YouTube", url: "https://www.youtube.com/results?search_query=", bg: "#FF0000" },
+        { value: "spotify", label: "Spotify", url: "https://open.spotify.com/search/", bg: "#1DB954" }
     ];
 
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -48,8 +51,10 @@ export default function SearchBar({ placeholder = "Search..." }) {
         e.preventDefault();
         if (e.deltaY < 0) {
             setSelectedIndex((prev) => (prev - 1 + options.length) % options.length);
+            setBorder(options[(selectedIndex - 1 + options.length) % options.length].bg);
         } else {
             setSelectedIndex((prev) => (prev + 1) % options.length);
+            setBorder(options[(selectedIndex + 1) % options.length].bg);
         }
     };
 
@@ -153,38 +158,46 @@ export default function SearchBar({ placeholder = "Search..." }) {
         }
     };
 
-    // Update search engine selection as the user types.
-    const handleQueryChange = (e) => {
-        const newQuery = e.target.value;
-        const letterMatch = newQuery.match(/^([a-zA-Z])\s+(.*)$/);
+    // Refactored handleQueryChange using the current query state.
+    const handleQueryChange = () => {
+        const letterMatch = query.match(/^([a-zA-Z])\s+(.*)$/);
         if (letterMatch) {
             const letter = letterMatch[1].toLowerCase();
+            // If the current search engine already starts with the letter, do nothing.
+            if (options[selectedIndex].label[0].toLowerCase() === letter) {
+                return;
+            }
             const candidate = options.findIndex(option => option.label[0].toLowerCase() === letter);
             if (candidate !== -1) {
                 setSelectedIndex(candidate);
+                // Remove the letter prefix from the query.
+                setQuery(letterMatch[2]);
             }
         }
-        setQuery(newQuery);
     };
 
-    const handleSuggestionClick = (suggestion) => {
-        setQuery(suggestion);
-        setShowHistory(false);
-    };
+    // Call handleQueryChange whenever query changes.
+    useEffect(() => {
+        handleQueryChange();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query]);
 
     return (
         <div className="w-[40%] absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center p-4">
             <form className="space-y-4 w-full" onSubmit={handleSubmit}>
-                <div className="searchbar flex items-center border-2 border-black p-1 px-3" style={{ backgroundColor: options[selectedIndex].bg }}>
+                <div
+                    className="searchbar flex items-center border-2 p-1 px-3 "
+                    style={{ borderColor: options[selectedIndex].bg }}
+                    onWheel={handleWheel}
+                >
                     <input
                         ref={inputRef}
                         type="text"
                         name="query"
                         value={query}
-                        onChange={handleQueryChange}
+                        onChange={(e) => setQuery(e.target.value)}
                         onFocus={() => setShowHistory(true)}
                         placeholder={placeholder}
-                        className=""
                     />
                     {query && (
                         <X className="inline h-full mr-2" onClick={() => setQuery("")} />
@@ -209,7 +222,7 @@ export default function SearchBar({ placeholder = "Search..." }) {
                     </select>
                 </div>
                 {calcResult && (
-                    <p className="ml-7">
+                    <p className="ml-7 text-gray-500 font-bold">
                         {calcResult.expression} = {calcResult.result}
                     </p>
                 )}
@@ -238,7 +251,10 @@ export default function SearchBar({ placeholder = "Search..." }) {
                         <div
                             key={index}
                             className="p-2 cursor-pointer border-b last:border-0"
-                            onClick={() => handleSuggestionClick(item)}
+                            onClick={() => {
+                                setQuery(item);
+                                setShowHistory(false);
+                            }}
                         >
                             {item}
                         </div>

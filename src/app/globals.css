@@ -19,10 +19,7 @@ body {
   all: unset;
   width: 100%;
   padding: 1.6% 2%;
-}
-
-.searchbar input[type="text"]:focus::placeholder {
-  color: black;
+  font-weight: 900;
 }
 
 .searchbar:has(input[type="text"]:focus) {
