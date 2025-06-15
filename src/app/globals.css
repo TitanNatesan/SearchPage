@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+* {
+  font-family: "Nova Square", sans-serif;
+  transition: all 0.5s ease;
+}
+
+.nova-square {
+  font-family: "Nova Square", sans-serif;
+  font-style: normal;
+}
+
+body {
+  @apply bg-gray-100 text-gray-900 flex flex-col min-h-screen;
+  background-size: cover;
+}
+
+.searchbar input[type="text"] {
+  all: unset;
+  width: 100%;
+  padding: 1.6% 2%;
+}
+
+.searchbar input[type="text"]:focus::placeholder {
+  color: black;
+}
+
+.searchbar:has(input[type="text"]:focus) {
+  box-shadow: 4px 6px 0 rgba(0, 0, 0, 1);
+}
+
+.searchaction {
+  @apply p-2 border;
+  transition: all 0.2s ease;
+}
+
+.searchaction:hover {
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 1);
+}
