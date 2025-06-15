@@ -14,6 +14,19 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
     ];
 
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [error, setError] = useState("");
+    const [query, setQuery] = useState("");
+    const [history, setHistory] = useState([]);
+    const [showHistory, setShowHistory] = useState(false);
+    const [selectedAction, setSelectedAction] = useState("search");
+    const [calcResult, setCalcResult] = useState(null);
+    const [filteredHistory, setFilteredHistory] = useState([]);
+
+    const suggestionsRef = useRef(null);
+    const inputRef = useRef(null);
+    const formRef = useRef(null);
+
+    // Load saved engine preference
     useEffect(() => {
         const saved = localStorage.getItem("selectedEngineIndex");
         if (saved !== null) {
@@ -21,15 +34,36 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
         }
     }, []);
 
-    const [error, setError] = useState("");
-    const [query, setQuery] = useState("");
-    const [history, setHistory] = useState([]);
-    const [showHistory, setShowHistory] = useState(false);
-    const [selectedAction, setSelectedAction] = useState("search");
-    const [calcResult, setCalcResult] = useState(null);
+    // Load search history from localStorage
+    useEffect(() => {
+        const savedHistory = localStorage.getItem("searchHistory");
+        if (savedHistory) {
+            try {
+                setHistory(JSON.parse(savedHistory));
+            } catch (e) {
+                console.error("Failed to parse search history", e);
+            }
+        }
+    }, []);
 
-    const suggestionsRef = useRef(null);
-    const inputRef = useRef(null);
+    // Save history to localStorage when it changes
+    useEffect(() => {
+        localStorage.setItem("searchHistory", JSON.stringify(history));
+    }, [history]);
+
+    // Handle outside clicks to close history dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showHistory && 
+                !suggestionsRef.current?.contains(event.target) && 
+                !formRef.current?.contains(event.target)) {
+                setShowHistory(false);
+            }
+        };
+        
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showHistory]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -46,7 +80,20 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
     useEffect(() => {
         localStorage.setItem("selectedEngineIndex", selectedIndex);
         setBorder(options[selectedIndex].bg);
-    }, [selectedIndex]);
+    }, [selectedIndex, setBorder, options]);
+
+    // Filter history based on current query
+    useEffect(() => {
+        if (query.trim() === '') {
+            setFilteredHistory(history);
+        } else {
+            setFilteredHistory(
+                history.filter(item => 
+                    item.query.toLowerCase().includes(query.toLowerCase())
+                )
+            );
+        }
+    }, [query, history]);
 
     const handleWheel = (e) => {
         e.preventDefault();
@@ -61,8 +108,11 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
 
     const addToHistory = (q) => {
         setHistory((prev) => {
-            const newHistory = [q, ...prev.filter(item => item !== q)];
-            return newHistory.slice(0, 5);
+            const now = new Date().toISOString();
+            const newItem = { query: q, timestamp: now, engine: options[selectedIndex].value };
+            // Filter out duplicate queries
+            const newHistory = [newItem, ...prev.filter(item => item.query !== q)];
+            return newHistory.slice(0, 20); // Keep last 20 searches
         });
     };
 
@@ -183,11 +233,22 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
+    // Format the timestamp to a readable format
+    const formatTime = (isoString) => {
+        const date = new Date(isoString);
+        return date.toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     return (
         <div className="w-[40%] absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center p-4">
-            <form className="space-y-4 w-full" onSubmit={handleSubmit}>
+            <form ref={formRef} className="space-y-4 w-full relative" onSubmit={handleSubmit}>
                 <div
-                    className="searchbar flex items-center border-2 p-1 px-3 "
+                    className="searchbar flex items-center border-2 p-1 px-3 relative"
                     style={{ borderColor: options[selectedIndex].bg }}
                     onWheel={handleWheel}
                 >
@@ -199,13 +260,14 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
                         onChange={(e) => setQuery(e.target.value)}
                         onFocus={() => setShowHistory(true)}
                         placeholder={placeholder}
+                        className="flex-grow outline-none"
                     />
                     {query && (
-                        <X className="inline h-full mr-2" onClick={() => setQuery("")} />
+                        <X className="inline h-full mr-2 cursor-pointer" onClick={() => setQuery("")} />
                     )}
                     <select
                         name="engine"
-                        className="max-w-2xl px-2 py-1 border-l-2 border-black inline h-full"
+                        className="max-w-2xl px-2 py-1 border-l-2 border-black inline h-full outline-none"
                         value={options[selectedIndex].value}
                         onChange={(e) => {
                             const idx = options.findIndex(option => option.value === e.target.value);
@@ -213,7 +275,6 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
                                 setSelectedIndex(idx);
                             }
                         }}
-                        onWheel={handleWheel}
                     >
                         {options.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -241,27 +302,45 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
                         action="videos"
                     />
                 </div>
+                
+                {showHistory && filteredHistory.length > 0 && (
+                    <div
+                        ref={suggestionsRef}
+                        className="absolute bg-white border border-gray-300 shadow-lg w-full rounded mt-1 z-10 max-h-80 overflow-y-auto"
+                        onMouseDown={(e) => e.preventDefault()}
+                    >
+                        {filteredHistory.map((item, index) => {
+                            const engineOption = options.find(opt => opt.value === item.engine) || options[0];
+                            return (
+                                <div
+                                    key={index}
+                                    className="p-3 cursor-pointer hover:bg-gray-100 flex justify-between items-center"
+                                    onClick={() => {
+                                        setQuery(item.query);
+                                        inputRef.current?.focus();
+                                        // Set the engine if available
+                                        if (item.engine) {
+                                            const idx = options.findIndex(opt => opt.value === item.engine);
+                                            if (idx !== -1) setSelectedIndex(idx);
+                                        }
+                                    }}
+                                >
+                                    <div className="flex items-center">
+                                        <span 
+                                            className="w-3 h-3 rounded-full mr-3" 
+                                            style={{ backgroundColor: engineOption.bg }}
+                                        ></span>
+                                        <span>{item.query}</span>
+                                    </div>
+                                    <span className="text-xs text-gray-500 ml-2">
+                                        {item.timestamp ? formatTime(item.timestamp) : ''}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </form>
-            {showHistory && history.length > 0 && (
-                <div
-                    ref={suggestionsRef}
-                    className="absolute bg-white border border-gray-300 w-full z-10 max-h-40 overflow-y-auto mt-1"
-                    onMouseDown={(e) => e.preventDefault()}
-                >
-                    {history.map((item, index) => (
-                        <div
-                            key={index}
-                            className="p-2 cursor-pointer border-b last:border-0"
-                            onClick={() => {
-                                setQuery(item);
-                                setShowHistory(false);
-                            }}
-                        >
-                            {item}
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }
