@@ -45,6 +45,7 @@ export default function SearchBar({ placeholder = "Search...", setBorder }) {
     // Save selectedIndex change to localStorage
     useEffect(() => {
         localStorage.setItem("selectedEngineIndex", selectedIndex);
+        setBorder(options[selectedIndex].bg);
     }, [selectedIndex]);
 
     const handleWheel = (e) => {
